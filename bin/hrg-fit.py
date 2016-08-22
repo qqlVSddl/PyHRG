@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import networkx as nx
+import numpy as np
 
 import optparse
 import os
@@ -8,11 +9,13 @@ import sys
 bindir = os.path.abspath(os.path.dirname(sys.argv[0]))
 libdir = os.path.dirname(bindir) + "/lib"
 sys.path.append(libdir)
+sys.setrecursionlimit(100000)
 
 from hrg import Dendrogram
 
 def print_status(*l):
     print("\t".join([str(x) for x in l]))
+
 
 def main():
     parser = optparse.OptionParser(
@@ -35,15 +38,12 @@ def main():
         parser.print_help()
         return 1
 
-    G=nx.read_edgelist(args[0], nodetype=options.nodetype)
-    name=os.path.splitext(args[0])[0]
-    hrg_file = name + '-hrg.gml'
-    print("HRG model will be saved as " + hrg_file + ".")
+    #G=nx.read_edgelist(args[0], nodetype=options.nodetype)
+    G = nx.read_gml(args[0], label = 'id')
 
     D=Dendrogram.from_graph(G)
 
     bestL=initL=D.graph['L']
-    prevL=bestL
     bestI=0
 
     print_status("step", "L", "best L", "MC step", "deltaL")
@@ -56,19 +56,44 @@ def main():
         if D.graph['L'] > bestL:
             bestL=D.graph['L']
             bestI=i
-            nx.write_gml(D, hrg_file)
-            print_status("["+str(i)+"]", "%.3f" % bestL, "%.3f" % bestL, t, "%.3f"%D.deltaL)
+            #print_status("["+str(i)+"]", "%.3f" % bestL, "%.3f" % bestL, t, "%.3f"%D.deltaL)
         elif i % 4096 == 0:
             print_status("["+str(i)+"]", "%.3f" % D.graph['L'], "%.3f" % bestL, t, "%.3f"%D.deltaL)
 
-        prevL=D.graph['L']
-
         if i % 10 == 0:
             sys.stdout.flush()
+    
+    print(bestL)
+    print('equilibrium')
+    
+    #Find equilibrium. You can have different convergence criteria.
+    flag_eq = False
+    while (not flag_eq):
+        old_bestL = bestL
+        for i in range(1, 10000):
+            D.monte_carlo_move()
+            if D.graph['L'] > bestL:
+                bestL = D.graph['L']
+        print_status("["+str(i)+"]", "%.3f" % D.graph['L'], "%.3f" % bestL, t, "%.3f"%D.deltaL)
+        print(bestL - old_bestL)
+        if (bestL - old_bestL) < 1:
+            flag_eq = True
+    
+    print('sample')
 
-    print("Step number of last best fit "+str(bestI) + ".")
-    print("HRG model was saved as " + hrg_file + ".")
-
+    #sample dendrograms at regular intervals.
+    n = len(G.nodes())
+    matrix = np.zeros((n, n))
+    for i in range(0, 10):
+        tmp = D.save_prob_matrix()
+        matrix = matrix + tmp
+        print(i)
+        for j in range(1, 1000):
+            D.monte_carlo_move()
+    matrix = matrix / 10   
+    
+    
+    np.savetxt('test.txt', matrix, fmt = '%.6f', newline = '\r\n')
     return 0
 
 if __name__ == '__main__':
