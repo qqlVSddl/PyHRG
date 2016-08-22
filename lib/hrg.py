@@ -1075,6 +1075,30 @@ class Dendrogram(nx.DiGraph):
         except KeyError:
             return set([parent])
 
+    def graph_nodes_below_r(self, root = '_D0'):
+        dic = {}
+        def _graph_nodes_below_r(parent):
+            if parent in dic:
+                return dic[parent]
+            try:
+                graph_nodes = set()
+                left_child = self.node[parent]['left']
+                right_child = self.node[parent]['right']
+                graph_nodes = graph_nodes | _graph_nodes_below_r(left_child) 
+                graph_nodes = graph_nodes | _graph_nodes_below_r(right_child)
+
+                dic[parent] = graph_nodes
+                return graph_nodes
+
+            except KeyError:
+                dic[parent] = set([parent])
+                return set([parent])
+        
+        _graph_nodes_below_r(root)
+        return dic
+
+    
+
     def least_upper_bound(self, u, v):
         parent = self.parent(u)
         upath = []
@@ -1118,6 +1142,31 @@ class Dendrogram(nx.DiGraph):
                     H.add_edge(u, v)
 
         return H
+
+
+    def save_prob_matrix(self):
+        H = nx.Graph()
+        H.add_nodes_from(self.G.nodes())
+
+        nodes = H.nodes()
+        n = len(nodes)
+        matrix = np.zeros((n, n))
+        dic = self.graph_nodes_below_r()
+
+        for node in self.dendrogram_nodes_iter():
+            left_child = self.node[node]['left']
+            right_child = self.node[node]['right']
+            left_set = dic[left_child]
+            right_set = dic[right_child]
+            for a in left_set:
+                for b in right_set:
+                    matrix[a][b] = self.node[node]['p']
+                    matrix[b][a] = self.node[node]['p']
+
+        for i in range(0, n):
+            matrix[i][i] = 1
+
+        return matrix     
 
     def sample_splits(self):
         """
@@ -1189,6 +1238,7 @@ class Dendrogram(nx.DiGraph):
                 return 0
 
         return _get_dendrogram_height(root)
+
 
     # FIXME: plotting doesn't work correctly quite yet.  IIRC, two things
     # can break: leaf nodes can be labeled incorrectly and the
