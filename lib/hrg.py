@@ -1127,18 +1127,15 @@ class Dendrogram(nx.DiGraph):
 
         return lub
 
-    def generate_graph(self):
+    def generate_graph(self, matrix, treshhold):
         H = nx.Graph()
         H.add_nodes_from(self.G.nodes())
-
         nodes = H.nodes()
 
         for i,u in enumerate(nodes):
             for j in range(i + 1, len(nodes)):
                 v = nodes[j]
-                lub = self.least_upper_bound(u, v)
-                p = self.node[lub]['p']
-                if random.random() < p:
+                if treshhold < matrix[i][j]:
                     H.add_edge(u, v)
 
         return H
